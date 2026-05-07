@@ -180,148 +180,12 @@
             :before-close="closePrinterConfig">
             <div class="printer-config">
                 <el-form label-position="left" label-width="120px">
-                    <el-form-item label="連接方式">
-                        <el-radio-group v-model="connectionType" @change="handleConnectionTypeChange">
-                            <el-radio value="usb">USB</el-radio>
-                            <el-radio value="network">網路</el-radio>
-                            <el-radio value="driver">驅動</el-radio>
-                        </el-radio-group>
-                    </el-form-item>
-
-                    <el-form-item v-if="connectionType === 'usb'" label="USB印表機">
-                        <el-select v-model="selectedPrinter" placeholder="請選擇印表機">
-                            <el-option v-for="printer in usbPrinters" :key="printer.path" :label="printer.name"
-                                :value="printer" />
-                        </el-select>
-                    </el-form-item>
-
-                    <el-form-item v-if="connectionType === 'driver'" label="驅動印表機">
-                        <el-select v-model="selectedPrinter" placeholder="請選擇印表機">
-                            <el-option v-for="printer in driverPrinters" :key="printer.path" :label="printer.name"
-                                :value="printer" />
-                        </el-select>
-                    </el-form-item>
-
-                    <el-form-item label="連接狀態">
-                        <el-tag :type="isConnected ? 'success' : 'danger'">
-                            {{ isConnected ? '已連接' : '未連接' }}
-                        </el-tag>
-                        <span v-if="printerError" class="error-text">{{ printerError }}</span>
-                    </el-form-item>
-
-                    <!-- 標籤預覽與位置調整 -->
-                    <el-divider content-position="left">標籤預覽與位置調整</el-divider>
-
-                    <div class="preview-section">
-                        <div class="preview-canvas-container">
-                            <div>
-                                <canvas ref="previewCanvas" width="400" height="300" class="preview-canvas"></canvas>
-                                <div class="canvas-info">
-                                    <span>標籤尺寸: {{ labelSettings.width }}mm × {{ labelSettings.height }}mm</span>
-                                </div>
-                            </div>
-                            <div>
-                                <h4>位置調整</h4>
-
-                                <el-form-item label="標籤寬度 (mm)">
-                                    <el-input-number v-model="labelSettings.width" :min="20" :max="200" :step="1"
-                                        @change="updateLabelSize" />
-                                </el-form-item>
-
-                                <el-form-item label="標籤高度 (mm)">
-                                    <el-input-number v-model="labelSettings.height" :min="15" :max="150" :step="1"
-                                        @change="updateLabelSize" />
-                                </el-form-item>
-                            </div>
-                        </div>
-
-                        <div class="position-controls">
-
-
-                            <!-- 多行文字設定 -->
-                            <el-divider content-position="left">多行文字設定</el-divider>
-
-                            <div v-for="(line, index) in labelSettings.lines" :key="index" class="line-settings"
-                                :style="{ border: `2px solid ${index === 0 ? '#ff9800' : '#00bcd4'}`, marginBottom: '20px', padding: '15px', borderRadius: '8px' }">
-
-                                <h5 :style="{ color: index === 0 ? '#ff9800' : '#00bcd4', marginBottom: '15px' }">
-                                    第{{ index + 1 }}行設定
-                                </h5>
-
-                                <el-form-item label="文字內容">
-                                    <!-- <el-input v-model="line.text" placeholder="輸入文字內容" @input="updatePreview" /> -->
-                                    <el-select v-model="line.textInfo" placeholder="選擇文字類型" @change="updateShowLabel"
-                                        value-key="textShow">
-                                        <el-option v-for="option in labelType" :key="option.value" :label="option.label"
-                                            :value="option" />
-                                    </el-select>
-                                </el-form-item>
-
-                                <el-row :gutter="20">
-                                    <el-col :span="8">
-                                        <el-form-item label="X 軸位置 (mm)">
-                                            <el-input-number v-model="line.x" :min="textBounds.leftMargin"
-                                                :max="textBounds.lines[index]?.maxX || textBounds.leftMargin"
-                                                :step="0.5" :precision="1" size="small" @change="updatePreview" />
-                                        </el-form-item>
-                                    </el-col>
-                                    <el-col :span="8">
-                                        <el-form-item label="Y 軸位置 (mm)">
-                                            <el-input-number v-model="line.y" :min="textBounds.topMargin"
-                                                :max="textBounds.lines[index]?.maxY || textBounds.topMargin" :step="0.5"
-                                                :precision="1" size="small" @change="updatePreview" />
-                                        </el-form-item>
-                                    </el-col>
-                                    <el-col :span="8">
-                                        <el-form-item label="字體大小">
-                                            <el-input-number v-model="line.fontSize" :min="40" :step="10" size="small"
-                                                @change="updatePreview" />
-                                        </el-form-item>
-                                    </el-col>
-                                </el-row>
-
-                                <el-row :gutter="10">
-                                    <el-col :span="12">
-                                        <div class="bounds-info">
-                                            <span class="info-text">X範圍: {{ textBounds.leftMargin }}mm ~ {{
-                                                textBounds.lines[index]?.maxX || textBounds.leftMargin }}mm</span>
-                                            <br>
-                                            <span class="size-info">文字寬: {{ textBounds.lines[index]?.textWidthMm || 0
-                                                }}mm</span>
-                                        </div>
-                                    </el-col>
-                                    <el-col :span="12">
-                                        <div class="bounds-info">
-                                            <span class="info-text">Y範圍: {{ textBounds.topMargin }}mm ~ {{
-                                                textBounds.lines[index]?.maxY || textBounds.topMargin }}mm</span>
-                                            <br>
-                                            <span class="size-info">文字高: {{ textBounds.lines[index]?.textHeightMm || 0
-                                                }}mm</span>
-                                        </div>
-                                    </el-col>
-                                </el-row>
-
-                                <div class="line-actions" style="margin-top: 10px;">
-                                    <el-button size="small" @click="resetLinePlosition(index)">重置此行</el-button>
-                                    <el-button size="small" @click="centerLine(index)">置中此行</el-button>
-                                    <el-button v-if="labelSettings.lines.length > 1" size="small" type="danger"
-                                        @click="removeLine(index)">刪除此行</el-button>
-                                </div>
-                            </div>
-
-                            <div class="global-actions">
-                                <el-button @click="addNewLine">+ 新增行</el-button>
-                                <el-button @click="resetPosition">重置所有位置</el-button>
-                                <el-button @click="centerText">置中所有文字</el-button>
-                            </div>
-                        </div>
-                    </div>
+                    <PrinterComponent ref="printComponentRef"></PrinterComponent>
                 </el-form>
 
                 <div class="printer-actions">
                     <el-button @click="initializePrinters" :loading="isPrinterLoading">重新整理印表機</el-button>
-                    <el-button type="primary" @click="testPrint" :disabled="!isConnected">測試列印</el-button>
-                    <!-- <el-button type="success" plain @click="closePrinterConfig">確認</el-button> -->
+                    <el-button type="primary" @click="print" :disabled="!isConnected">測試列印</el-button>
                     <el-button type="success" plain @click="temporaryStore">暫存</el-button>
                 </div>
             </div>
@@ -356,6 +220,8 @@ import { formRulesTW } from "@/utils/checkSum";
 
 import { useAppStore } from "@/store";
 
+import PrinterComponent from "@/views/printer/index.vue";
+
 // const closeSidebar = () => {
 //     const appStore = useAppStore();
 //     appStore.closeSideBar();
@@ -385,15 +251,21 @@ const {
     }
 })
 
+const printComponentRef = ref<InstanceType<typeof PrinterComponent>>()
+const print = () => {
+    if (printComponentRef.value) {
+        printComponentRef.value.printLabel()
+    } else {
+        ElNotification({
+            title: '錯誤',
+            message: '無法找到列印組件，請稍後再試。',
+            type: 'error',
+        })
+    }
+}
+
 // 標籤設定和預覽
 
-const labelType = ref([
-    { label: '中文名', value: 'chineseName', textType: 'chineseName', textShow: '中文名' },
-    { label: '英文名', value: 'userName', textType: 'userName', textShow: 'English Name' },
-    { label: '會員編號', value: 'sequenceNo', textType: 'sequenceNo', textShow: '會員編號' },
-    { label: '單位', value: 'affiliation', textType: 'affiliation', textShow: '單位' },
-    { label: '職稱', value: 'jobTitle', textType: 'jobTitle', textShow: '職稱' },
-])
 
 const INCH_TO_PX = 96
 const INCH_TO_DOT = 300
@@ -567,12 +439,6 @@ const canvasFontSizes = computed(() => {
 })
 
 
-const updateShowLabel = () => {
-    labelSettings.lines.forEach(line => {
-        line.text = line.textInfo.textShow
-    })
-    updatePreview()
-}
 
 // 更新預覽畫面
 const updatePreview = () => {
@@ -764,18 +630,6 @@ const updatePreview = () => {
     }
 }
 
-// 重置位置
-const resetPosition = () => {
-    labelSettings.lines.forEach((line, index) => {
-        line.x = textBounds.value.leftMargin + 1
-        line.y = textBounds.value.topMargin + 1 + (index * 15) // 每行間隔 15mm
-    })
-    console.log('重置所有行位置:', labelSettings.lines.map((line, index) =>
-        `第${index + 1}行: (${line.x}, ${line.y})mm`
-    ).join(', '))
-    updatePreview()
-}
-
 // 文字置中 - 重新設計的置中邏輯
 const centerText = () => {
     console.log('開始多行置中計算...')
@@ -840,127 +694,7 @@ const centerText = () => {
     updatePreview()
 }
 
-// 更新標籤尺寸時的處理
-const updateLabelSize = () => {
-    // 確保當前位置仍在有效範圍內
-    nextTick(() => {
-        labelSettings.lines.forEach((line, index) => {
-            const lineInfo = textBounds.value.lines[index]
 
-            // 檢查並修正 X 座標
-            if (line.x > lineInfo.maxX) {
-                line.x = lineInfo.maxX
-            }
-            if (line.x < textBounds.value.leftMargin) {
-                line.x = textBounds.value.leftMargin
-            }
-
-            // 檢查並修正 Y 座標  
-            if (line.y > lineInfo.maxY) {
-                line.y = lineInfo.maxY
-            }
-            if (line.y < textBounds.value.topMargin) {
-                line.y = textBounds.value.topMargin
-            }
-
-            // 檢查文字右下邊緣是否超出標籤範圍
-            const textRight = line.x + lineInfo.textWidthMm
-            const textBottom = line.y + lineInfo.textHeightMm
-            const labelRightBoundary = labelSettings.width - textBounds.value.rightMargin
-            const labelBottomBoundary = labelSettings.height - textBounds.value.bottomMargin
-
-            if (textRight > labelRightBoundary) {
-                line.x = Math.max(textBounds.value.leftMargin, labelRightBoundary - lineInfo.textWidthMm)
-            }
-            if (textBottom > labelBottomBoundary) {
-                line.y = Math.max(textBounds.value.topMargin, labelBottomBoundary - lineInfo.textHeightMm)
-            }
-        })
-
-        updatePreview()
-    })
-}
-
-// 新增行
-const addNewLine = () => {
-    const newLine = {
-        text: `第 ${labelSettings.lines.length + 1} 行`,
-        textType: '',
-        textInfo: {
-            textType: '',
-            textShow: `第 ${labelSettings.lines.length + 1} 行`
-        },
-        x: textBounds.value.leftMargin + 1,
-        y: textBounds.value.topMargin + 1 + (labelSettings.lines.length * 15),
-        fontSize: 120
-    }
-    labelSettings.lines.push(newLine)
-    updatePreview()
-}
-
-// 刪除行
-const removeLine = (index: number) => {
-    if (labelSettings.lines.length > 1) {
-        labelSettings.lines.splice(index, 1)
-        updatePreview()
-    }
-}
-
-// 重置單行位置
-const resetLinePlosition = (index: number) => {
-    if (index >= 0 && index < labelSettings.lines.length) {
-        labelSettings.lines[index].x = textBounds.value.leftMargin + 1
-        labelSettings.lines[index].y = textBounds.value.topMargin + 1 + (index * 15)
-        updatePreview()
-    }
-}
-
-// 置中單行
-const centerLine = (index: number) => {
-    if (index >= 0 && index < labelSettings.lines.length && index < textBounds.value.lines.length) {
-
-        if (!previewCanvas.value) {
-            console.warn('Canvas 不可用，無法執行置中')
-            return
-        }
-
-        const canvas = previewCanvas.value
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-
-        const line = labelSettings.lines[index]
-        const lineInfo = textBounds.value.lines[index]
-
-        // 計算標籤的實際可用區域(除去邊距)
-        const usableWidth = labelSettings.width - textBounds.value.leftMargin - textBounds.value.rightMargin
-        const usableAreaCenterX = textBounds.value.leftMargin + (usableWidth / 2)
-
-        // 使用 Canvas 測量實際文字寬度
-        const fontSizeMm = line.fontSize / 300 * 25.4
-        const scale = 4
-        const fontSize = fontSizeMm * scale
-
-        ctx.font = `bold ${fontSize}px Arial`
-        const measuredWidth = ctx.measureText(line.text).width
-        const actualTextWidthMm = measuredWidth / scale * 0.9 // 轉回毫米，考慮水平縮放
-
-        // 水平置中
-        const centerX = usableAreaCenterX - (actualTextWidthMm / 2)
-
-        // 確保在安全範圍內
-        line.x = Math.max(textBounds.value.leftMargin, Math.min(centerX, lineInfo.maxX))
-        line.x = Math.round(line.x * 10) / 10
-
-        updatePreview()
-    }
-}
-
-// 處理連接方式改變 - 包裝函數解決類型問題
-const handleConnectionTypeChange = (value: string | number | boolean | undefined) => {
-    if (typeof value === 'string') {
-        setConnectionType(value as 'usb' | 'network' | 'driver')
-    }
-}
 
 // 自動打印開關
 const isAutoPrintEnabled = ref(true)
@@ -1437,8 +1171,9 @@ const temporaryStoredSettings = reactive({
 })
 
 const temporaryStore = () => {
-    console.log('臨時存儲當前設定:', JSON.stringify(temporaryStoredSettings.labelSettings))
-    localStorage.setItem('temporaryLabelSettings', JSON.stringify(labelSettings))
+    printComponentRef.value?.setTempSetting() // 確保在存儲前先置中，讓用戶看到最佳預覽
+    // console.log('臨時存儲當前設定:', JSON.stringify(temporaryStoredSettings.labelSettings))
+    // localStorage.setItem('temporaryLabelSettings', JSON.stringify(labelSettings))
 }
 
 const loadTemporaryStoredSettings = () => {
