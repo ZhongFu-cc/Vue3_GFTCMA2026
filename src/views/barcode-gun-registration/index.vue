@@ -3,7 +3,6 @@
         <el-card class="main-card">
             <div class="data-section">
                 <AttendeesStats />
-                <el-button @click="handleSaveLastScrollData">123</el-button>
                 <div class="checkin-table-box">
                     <h1>掃碼槍簽到退系統</h1>
 
@@ -48,9 +47,9 @@
                             <el-card v-for="item in showAttendeesList" class="checkin-data-card">
                                 <div class="member-info" @click="openDrawer(item)">
                                     <p class="attendee-name" v-if="item.member.chineseName">{{ item.member.chineseName
-                                        }}</p>
+                                    }}</p>
                                     <p class="attendee-name" v-else>{{ item.member.firstName }} {{ item.member.lastName
-                                        }}</p>
+                                    }}</p>
                                     <p>{{ memberEnums[item.member.category] }}</p>
                                 </div>
                                 <el-icon class="checkin-icon" :class="item.isCheckedIn ? 'checkin' : ''"
