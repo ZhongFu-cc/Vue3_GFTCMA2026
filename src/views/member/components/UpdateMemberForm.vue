@@ -6,11 +6,11 @@
           <el-input v-model="props.memberData.email" disabled />
         </el-form-item>
 
-        <el-form-item label="稱謂" prop="title" :rules="[{ required: true, message: '請輸入稱謂', trigger: 'blur' }]">
+        <!-- <el-form-item label="稱謂" prop="title" :rules="[{ required: true, message: '請輸入稱謂', trigger: 'blur' }]">
           <el-radio-group v-model="updateFormData.title">
             <el-radio v-for="title in titles" :key="title" :label="title" :value="title">{{ title }}</el-radio>
           </el-radio-group>
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="英文名字" prop="firstName" :rules="[{ required: true, message: '請輸入英文名字', trigger: 'blur' }]">
           <el-input v-model="updateFormData.firstName" />
@@ -48,21 +48,21 @@
           <el-input v-model="updateFormData.phone" />
         </el-form-item>
 
-        <el-form-item label="匯款帳號後五碼" prop="remitAccountLast5">
+        <!-- <el-form-item label="匯款帳號後五碼" prop="remitAccountLast5">
           <el-input v-model="updateFormData.remitAccountLast5" />
-        </el-form-item>
+        </el-form-item> -->
 
-        <el-form-item label="抬頭" prop="receipt">
+        <!-- <el-form-item label="抬頭" prop="receipt">
           <el-input v-model="updateFormData.receipt" />
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="會員類別">
           <el-input v-model="memberEnums[props.memberData.category]" disabled />
         </el-form-item>
 
-        <el-form-item label="補充類別">
+        <!-- <el-form-item label="補充類別">
           <el-input v-model="updateFormData.categoryExtra" />
-        </el-form-item>
+        </el-form-item> -->
 
         <el-form-item label="註冊費">
           <el-input v-model="props.memberData.amount" disabled />
@@ -139,7 +139,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 );
 
 const handleUpdateSubmit = (formEl: FormInstance | undefined) => {
@@ -147,6 +147,7 @@ const handleUpdateSubmit = (formEl: FormInstance | undefined) => {
   formEl.validate((valid: boolean) => {
     if (valid) {
       emits('updateMember', updateFormData.value);
+      updateFormRef.value?.resetFields();
     } else {
       ElMessage.error('表單驗證失敗，請檢查輸入內容');
     }

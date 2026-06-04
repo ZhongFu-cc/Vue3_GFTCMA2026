@@ -7,7 +7,7 @@ const { pkg } = __APP_INFO__;
 
 const defaultSettings: AppSettings = {
   // title: pkg.name,
-  title: "TOPBS 2026 後台",
+  title: "TICBCS 2026 後台",
   version: pkg.version,
   showSettings: true,
   tagsView: false,
