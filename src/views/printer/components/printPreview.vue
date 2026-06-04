@@ -110,6 +110,7 @@
 <script lang="ts" setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useTSC } from '@/composables/useTSC'
+import { ElMessage } from 'element-plus'
 
 /**
  * ==================================================
@@ -739,6 +740,7 @@ const resetPosition = () => {
   labelSettings.value.lines.forEach((line: any, index: number) => {
     line.x = textBounds.value.leftMargin + 1
     line.y = textBounds.value.topMargin + 1 + (index * FONT_SETTINGS.LINE_SPACING)
+    line.positionMode = 'fixed'
   })
 
   console.log('重置所有行位置:', labelSettings.value.lines.map((line: any, index: number) =>
@@ -798,6 +800,7 @@ const centerText = () => {
     // 四捨五入到小數點後一位
     line.x = Math.round(line.x * 10) / 10
     line.y = Math.round(line.y * 10) / 10
+    line.positionMode = 'center'
 
     console.log(`第${index + 1}行置中後位置: (${line.x}, ${line.y})mm, 文字寬度: ${actualTextWidthMm}mm`)
   })
@@ -812,13 +815,9 @@ const centerText = () => {
  * @returns {number} 實際文字寬度(mm)
  */
 const calculateActualTextWidth = (ctx: CanvasRenderingContext2D, line: any): number => {
-  const fontSizeMm = line.fontSize / CONVERSION_FACTORS.INCH_TO_DOT * CONVERSION_FACTORS.MM_TO_INCHES
-  const scale = CONVERSION_FACTORS.CANVAS_SCALE
-  const fontSize = fontSizeMm * scale
-
-  ctx.font = `bold ${fontSize}px Arial`
-  const measuredWidth = ctx.measureText(line.text).width
-  return (measuredWidth / scale) * CONVERSION_FACTORS.HORIZONTAL_SCALE
+  // 置中計算改為與列印端一致的精確寬度，避免中文在預覽中偏左
+  const textWidthDots = getPreciseWidth(line.text || '', line.fontSize, '0', 'Arial')
+  return textWidthDots / CONVERSION_FACTORS.INCH_TO_DOT * CONVERSION_FACTORS.MM_TO_INCHES
 }
 
 /**
@@ -866,6 +865,44 @@ const updateLabelSize = () => {
  */
 const addNewLine = () => {
   const newLineIndex = labelSettings.value.lines.length
+  const bottomBoundary = labelSettings.value.height - textBounds.value.bottomMargin
+  const targetY = textBounds.value.topMargin + 1 + (newLineIndex * FONT_SETTINGS.LINE_SPACING)
+
+  const getLineHeightMm = (fontSize: number) => {
+    return (fontSize / CONVERSION_FACTORS.INCH_TO_DOT * CONVERSION_FACTORS.MM_TO_INCHES) * 0.9
+  }
+
+  // 找到目標 Y 下方(含同一高度)的所有行，新增時一起往下推
+  const affectedIndexes = labelSettings.value.lines
+    .map((line: any, index: number) => ({
+      index,
+      y: Number(line.y) || textBounds.value.topMargin,
+      fontSize: Number(line.fontSize) || FONT_SETTINGS.DEFAULT_SIZE
+    }))
+    .filter((lineInfo: any) => lineInfo.y >= targetY)
+
+  if (affectedIndexes.length > 0) {
+    const hasInsufficientSpace = affectedIndexes.some((lineInfo: any) => {
+      const maxSafeY = bottomBoundary - getLineHeightMm(lineInfo.fontSize)
+      return lineInfo.y + FONT_SETTINGS.LINE_SPACING > maxSafeY
+    })
+
+    if (hasInsufficientSpace) {
+      ElMessage.warning('下方行數空間不足，無法再插入新行，請先調整位置或刪除部分行')
+      return
+    }
+
+    // 由下往上推，避免連動覆蓋
+    const sortedAffected = [...affectedIndexes].sort((a: any, b: any) => b.y - a.y)
+    sortedAffected.forEach((lineInfo: any) => {
+      const line = labelSettings.value.lines[lineInfo.index]
+      line.y = Math.round((line.y + FONT_SETTINGS.LINE_SPACING) * 10) / 10
+    })
+  }
+
+  const newLineHeightMm = getLineHeightMm(FONT_SETTINGS.DEFAULT_SIZE)
+  const safeY = Math.max(textBounds.value.topMargin, Math.min(targetY, bottomBoundary - newLineHeightMm))
+
   const newLine = {
     text: `第 ${newLineIndex + 1} 行`,
     textType: '',
@@ -874,11 +911,19 @@ const addNewLine = () => {
       textShow: `第 ${newLineIndex + 1} 行`
     },
     x: textBounds.value.leftMargin + 1,
-    y: textBounds.value.topMargin + 1 + (newLineIndex * FONT_SETTINGS.LINE_SPACING),
-    fontSize: FONT_SETTINGS.DEFAULT_SIZE
+    y: safeY,
+    fontSize: FONT_SETTINGS.DEFAULT_SIZE,
+    positionMode: 'fixed'
   }
 
-  labelSettings.value.lines.push(newLine)
+  // 依 Y 座標插入，讓控制面板順序與實際排版一致
+  const insertIndex = labelSettings.value.lines.findIndex((line: any) => (Number(line.y) || 0) >= safeY)
+  if (insertIndex >= 0) {
+    labelSettings.value.lines.splice(insertIndex, 0, newLine)
+  } else {
+    labelSettings.value.lines.push(newLine)
+  }
+
   console.log(`新增第${newLineIndex + 1}行:`, newLine)
   updatePreview()
 }
@@ -906,6 +951,7 @@ const resetLinePlosition = (index: number) => {
     const line = labelSettings.value.lines[index]
     line.x = textBounds.value.leftMargin + 1
     line.y = textBounds.value.topMargin + 1 + (index * FONT_SETTINGS.LINE_SPACING)
+    line.positionMode = 'fixed'
 
     console.log(`重置第${index + 1}行位置: (${line.x}, ${line.y})mm`)
     updatePreview()
@@ -947,6 +993,7 @@ const centerLine = (index: number) => {
   // 確保在安全範圍內並設定位置
   line.x = Math.max(textBounds.value.leftMargin, Math.min(centerX, lineInfo.maxX))
   line.x = Math.round(line.x * 10) / 10
+  line.positionMode = 'center'
 
   console.log(`置中第${index + 1}行: (${line.x}, ${line.y})mm, 寬度: ${actualTextWidthMm}mm`)
   updatePreview()

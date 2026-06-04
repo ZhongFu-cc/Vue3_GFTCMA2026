@@ -39,7 +39,7 @@ const connectionTypes = [
 ]
 
 const {
-  isConnected, isLoading: isPrinterLoading, error: printerError, printLabel, selectedPrinter, usbPrinters, driverPrinters, connectionType, setConnectionType, initializePrinters, labelConfig
+  isConnected, selectedPrinter, usbPrinters, driverPrinters, connectionType, setConnectionType, error: printerError
 } = useTSC({
   connectionType: 'usb',
   labelConfig: {
@@ -51,28 +51,12 @@ const {
   }
 })
 
-const printList = ref<any[]>([])
-
 // 監聽連接方式變化
 const handleConnectionTypeChange = (value: string | number | boolean | undefined) => {
   console.log('連接方式變更:', value);
   if (typeof value === 'string') {
     setConnectionType(value as 'usb' | 'network' | 'driver');
-    fetchPrinters();
   }
 }
-
-const fetchPrinters = () => {
-  if (usbPrinters.value.length > 0) {
-    printList.value = [...usbPrinters.value];
-  } else if (driverPrinters.value.length > 0) {
-    printList.value = [...driverPrinters.value];
-  }
-}
-
-onMounted(async () => {
-  await initializePrinters();
-  fetchPrinters();
-})
 
 </script>
