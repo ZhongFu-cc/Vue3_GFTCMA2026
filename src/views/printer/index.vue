@@ -17,7 +17,7 @@ const { labelConfig, isConnected, connectionType, selectedPrinter } = useTSC({
   connectionType: 'usb',
   labelConfig: {
     dpi: 300,
-    widthMm: 80,
+    widthMm: 95,
     heightMm: 60,  // 與 labelSettings 一致！
     marginLeftMm: 2,
     marginRightMm: 2
@@ -36,7 +36,7 @@ const { labelConfig, isConnected, connectionType, selectedPrinter } = useTSC({
  * - fontSize: 字體大小
  */
 const labelSettings = reactive({
-  width: 80,      // 標籤寬度 (mm)
+  width: 95,      // 標籤寬度 (mm)
   height: 60,     // 標籤高度 (mm)
   lines: [
     {
@@ -46,8 +46,8 @@ const labelSettings = reactive({
         textType: 'userName',
         textShow: 'English Name'
       },
-      x: 3,
-      y: 2,
+      x: 12.6,
+      y: 19.0,
       fontSize: 155
     },
     {
@@ -57,9 +57,9 @@ const labelSettings = reactive({
         textType: 'chineseName',
         textShow: '中文名'
       },
-      x: 8,
-      y: 15,
-      fontSize: 130
+      x: 34.6,
+      y: 32.0,
+      fontSize: 120
     }
   ]
 })

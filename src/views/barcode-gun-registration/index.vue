@@ -230,7 +230,7 @@ const PX_TO_DOT = INCH_TO_DOT / INCH_TO_PX
 const PRINT_X_COMPENSATION_MM = -3.0
 
 const labelSettings = reactive({
-    width: 80,      // 標籤寬度 (mm)
+    width: 95,      // 標籤寬度 (mm)
     height: 60,     // 標籤高度 (mm)
     lines: [
         {
