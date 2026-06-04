@@ -239,7 +239,7 @@ const dictDataDialog = reactive({
 const selectedDictType = reactive({ typeCode: "", typeName: "" }); // 当前选中的字典类型
 
 /** 打开字典数据弹窗 */
-function openDictDialog(row: DictTypePageVO) {
+function openDictDialog(row: any) {
   dictDataDialog.visible = true;
   dictDataDialog.title = "【" + row.name + "】字典数据";
 
