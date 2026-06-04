@@ -371,14 +371,12 @@ export function useTSC(config: PrinterConfiguration = { connectionType: 'usb' })
 
                 try {
                     const responseObj = JSON.parse(event.data)
-
                     if ('usb_list' in responseObj) {
                         usbPrinters.value = responseObj.usb_list.map((printer: any) => ({
                             name: `${printer.USBName} (Path: ${Base64.decode(printer.USBPath)})`,
                             path: printer.USBPath,
                             type: 'usb' as const
                         }))
-
                         // 自動選擇印表機：優先恢復保存的選擇，其次選第一台
                         if (connectionType.value === 'usb' && !selectedPrinter.value) {
                             const savedPrinter = loadSavedPrinter()
@@ -502,6 +500,7 @@ export function useTSC(config: PrinterConfiguration = { connectionType: 'usb' })
             // 獲取伺服器版本
             const aboutObj = { about: [] } as unknown as { functions_inorder: TSCCommand[] }
             await connectToServer(aboutObj)
+
 
         } catch (err) {
             console.error('初始化印表機列表失敗:', err)
@@ -758,7 +757,7 @@ export function useTSC(config: PrinterConfiguration = { connectionType: 'usb' })
         isConnected: isConnected,
         isLoading: readonly(isLoading),
         error: readonly(error),
-        connectionType: readonly(connectionType),
+        connectionType: connectionType,
         networkConfig: readonly(networkConfig),
         labelConfig: labelConfig,
         labelConfigDots: readonly(labelConfigDots),
