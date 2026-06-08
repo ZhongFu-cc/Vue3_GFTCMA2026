@@ -7,7 +7,7 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item class="title-form-item" label="稱謂" prop="title" :rules="titleRules">
+      <!-- <el-form-item class="title-form-item" label="稱謂" prop="title" :rules="titleRules">
         <el-radio-group class="title-radio-group" v-model="data.title" placeholder="稱謂">
           <el-radio label="Prof." value="Prof."></el-radio>
           <el-radio label="Dr." value="Dr."></el-radio>
@@ -15,7 +15,7 @@
           <el-radio label="Ms." value="Ms."></el-radio>
         </el-radio-group>
 
-      </el-form-item>
+      </el-form-item> -->
       <el-form-item v-if="data.country === 'Taiwan'" label="中文姓名" prop="chineseName" :rules="chineseNameRules">
         <el-input v-model="data.chineseName" placeholder="中文名" />
       </el-form-item>
@@ -31,12 +31,12 @@
       <el-form-item label="E-mail" prop="email" :rules="emailRules">
         <el-input v-model="data.email" placeholder="E-mail" />
       </el-form-item>
-      <el-form-item label="密碼" prop="password" :rules="passwordRules">
+      <!-- <el-form-item label="密碼" prop="password" :rules="passwordRules">
         <el-input v-model="data.password" placeholder="密碼" type="password" />
-      </el-form-item>
-      <el-form-item label="確認密碼" prop="confirmPassword">
+      </el-form-item> -->
+      <!-- <el-form-item label="確認密碼" prop="confirmPassword">
         <el-input v-model="data.confirmPassword" placeholder="確認密碼" type="password" />
-      </el-form-item>
+      </el-form-item> -->
       <el-form-item label="所屬機構" prop="affiliation" :rules="affiliationRules">
         <el-input v-model="data.affiliation" placeholder="單位" />
       </el-form-item>
@@ -46,7 +46,7 @@
       <!-- <el-form-item label="身份證字號/護照號碼" prop="idCard" :rules="data.country === 'Taiwan' ? idCardRules : passportRules">
         <el-input v-model="data.idCard" placeholder="身份證字號/護照號碼" />
       </el-form-item> -->
-      <div class="phone-section">
+      <!-- <div class="phone-section">
         <el-form-item label="國碼" prop="countryCode" class="country-code" :rules="countryCodeRules">
           <el-input v-model="data.countryCode" />
         </el-form-item>
@@ -54,7 +54,7 @@
         <el-form-item label="連絡電話" prop="phone" class="phone" :rules="phoneRules">
           <el-input v-model="data.phone" placeholder="連絡電話" />
         </el-form-item>
-      </div>
+      </div> -->
       <el-form-item label="食物偏好" prop="food">
         <el-radio-group v-model="data.food" style="margin-left: 1rem;">
           <el-radio value="葷">葷</el-radio>
@@ -101,7 +101,7 @@ const data = ref<Member>({
   lastName: '',
   chineseName: '',
   email: '',
-  password: '',
+  password: '69678786',
   confirmPassword: '',
   affiliation: '',
   jobTitle: '',
@@ -111,7 +111,7 @@ const data = ref<Member>({
   food: '葷',
   foodTaboo: '',
   receipt: '',
-  category: 4,
+  category: 5,
   status: 1,
 });
 const formRef = ref<FormInstance>();

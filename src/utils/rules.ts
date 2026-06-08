@@ -87,12 +87,12 @@ export const emailRules = [
   },
 ]
 
-export const affiliationRules = [{ required: true, message: "單位名稱不能為空", trigger: "blur" }];
+export const affiliationRules = [{ required: false, message: "單位名稱不能為空", trigger: "blur" }];
 
-export const jobTitleRules = [{ required: true, message: "職稱不能為空", trigger: "blur" }];
+export const jobTitleRules = [{ required: false, message: "職稱不能為空", trigger: "blur" }];
 
 export const chineseNameRules = [
-  { required: true, message: "中文姓名不能為空", trigger: "blur" },
+  { required: false, message: "中文姓名不能為空", trigger: "blur" },
   { min: 2, max: 10, message: "中文姓名長度在 2 到 10 個字", trigger: "blur" },
 ];
 
@@ -113,11 +113,11 @@ export const categoryRules = [
 ];
 
 export const countryCodeRules = [
-  { required: true, message: "國碼不能為空", trigger: "change" },
+  { required: false, message: "國碼不能為空", trigger: "change" },
 ];
 
 export const phoneRules = [
-  { required: true, message: "電話不能為空", trigger: "blur" },
+  { required: false, message: "電話不能為空", trigger: "blur" },
   { pattern: /^[0-9\-]+$/, message: "電話格式不正確", trigger: "blur" },
 ];
 
