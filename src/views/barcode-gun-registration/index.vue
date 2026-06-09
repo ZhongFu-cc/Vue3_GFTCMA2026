@@ -886,7 +886,7 @@ const checkOut = async () => {
         console.log("res", res);
         ElMessage.success({
             message: `會員${clickRecord.member.chineseName}:簽退成功`,
-            // duration: 1000,
+            duration: 0,
         });
         isOptionDialogVisible.value = false;
         handleUpdateList();
@@ -904,6 +904,15 @@ const checkin = async () => {
         switch (res.data.attendeesVO.member.category) {
             case 1:
                 category = "一般會員";
+                break;
+            case 4:
+                category = "WorkShop";
+                break;
+            case 5:
+                category = "講者";
+                break;
+            case 6:
+                category = "座長";
                 break;
         }
 
@@ -924,7 +933,7 @@ const checkin = async () => {
             dangerouslyUseHTMLString: true,
             message: `<p style="color:green;font-weight:bold;">${type}</p>
                 會員: ${res.data.attendeesVO.member.chineseName ? res.data.attendeesVO.member.chineseName : res.data.attendeesVO.member.firstName + res.data.attendeesVO.member.lastName}<br/>
-                會員類別: ${category}<br/>`,
+                會員類別: ${category}<br/>${res.data.attendeesVO.member.remark ? `備註: ${res.data.attendeesVO.member.remark}` : ''}<br/>`,
             // <p style="color:red;"> 非去年年會參加會員</p>`,
             duration: 10000,
             type: "success",
