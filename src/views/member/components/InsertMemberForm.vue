@@ -69,7 +69,7 @@
       </el-form-item>
       <el-form-item class="category required" label="類別" prop="category" :rules="categoryRules">
         <el-select v-model="data.category">
-          <el-option label="MVP" :value="4"></el-option>
+          <el-option label="Workshop(工作坊)" :value="4"></el-option>
           <el-option label="講者" :value="5"></el-option>
           <el-option label="座長" :value="6"></el-option>
           <el-option label="Staff" :value="7"></el-option>
