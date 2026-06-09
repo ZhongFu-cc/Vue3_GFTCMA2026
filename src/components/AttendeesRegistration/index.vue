@@ -66,6 +66,10 @@ const getRegistrationData = async () => {
   Object.assign(stats, res.data);
 }
 
+defineExpose({
+  getRegistrationData
+})
+
 onMounted(() => {
   getRegistrationData()
 })
