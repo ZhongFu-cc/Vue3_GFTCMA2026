@@ -2,7 +2,7 @@
     <section class="main-section">
         <el-card class="main-card">
             <div class="data-section">
-                <AttendeesStats />
+                <AttendeesStats ref="attendeeStatsRef" />
                 <div class="checkin-table-box">
                     <h1>掃碼槍簽到退系統</h1>
 
@@ -47,9 +47,9 @@
                             <el-card v-for="item in showAttendeesList" class="checkin-data-card">
                                 <div class="member-info" @click="openDrawer(item)">
                                     <p class="attendee-name" v-if="item.member.chineseName">{{ item.member.chineseName
-                                    }}</p>
+                                        }}</p>
                                     <p class="attendee-name" v-else>{{ item.member.firstName }} {{ item.member.lastName
-                                    }}</p>
+                                        }}</p>
                                     <p>{{ memberEnums[item.member.category] }}</p>
                                 </div>
                                 <el-icon class="checkin-icon" :class="item.isCheckedIn ? 'checkin' : ''"
@@ -114,7 +114,9 @@
                         <el-text>{{ attendee.sequenceNo }}</el-text>
                     </el-form-item>
                     <el-form-item label="會員姓名">
-                        <el-text>{{ attendee.member.chineseName }}</el-text>
+                        <el-text v-if="attendee.member && attendee.member.chineseName">{{ attendee.member.chineseName
+                            }}</el-text>
+                        <el-text v-else>{{ attendee.member.firstName }}{{ attendee.member.lastName }}</el-text>
                     </el-form-item>
                     <el-form-item label="會員類別">
                         <el-text>{{ memberEnums[attendee.member.category] }}</el-text>
@@ -184,6 +186,7 @@ import { formRulesTW } from "@/utils/checkSum";
 
 import PrinterComponent from "@/views/printer/index.vue";
 
+const attendeeStatsRef = ref<InstanceType<typeof AttendeesStats>>()
 /**---------------TSC印表機設置----------------- */
 const {
     isConnected,
@@ -905,26 +908,32 @@ const checkin = async () => {
         }
 
         const type = submitCheckData.actionType == 1 ? "簽到成功" : "簽退成功";
-        if (res.data.attendeesVO.isLastYearAttendee) {
-            ElNotification({
-                title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
-                dangerouslyUseHTMLString: true,
-                message: `<p style="color:green;font-weight:bold;">${type}</p> 會員: ${res.data.attendeesVO.member.chineseName}<br/>會員類別: ${category}<br/> <p style="color:green;">為去年年會參加會員</p>`,
-                duration: 10000,
-                type: "success",
-            });
-        } else {
-            ElNotification({
-                title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
-                dangerouslyUseHTMLString: true,
-                message: `<p style="color:green;font-weight:bold;">${type}</p>會員: ${res.data.attendeesVO.member.chineseName}<br/>會員類別: ${category}<br/><p style="color:red;"> 非去年年會參加會員</p>`,
-                duration: 10000,
-                type: "success",
-            });
-        }
+        // if (res.data.attendeesVO.isLastYearAttendee) {
+        //     ElNotification({
+        //         title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
+        //         dangerouslyUseHTMLString: true,
+        //         message: `<p style="color:green;font-weight:bold;">${type}</p>
+        //          會員: ${res.data.attendeesVO.member.chineseName}<br/>
+        //          會員類別: ${category}<br/> <p style="color:green;">為去年年會參加會員</p>`,
+        //         duration: 10000,
+        //         type: "success",
+        //     });
+        // } else {
+        ElNotification({
+            title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
+            dangerouslyUseHTMLString: true,
+            message: `<p style="color:green;font-weight:bold;">${type}</p>
+                會員: ${res.data.attendeesVO.member.chineseName ? res.data.attendeesVO.member.chineseName : res.data.attendeesVO.member.firstName + res.data.attendeesVO.member.lastName}<br/>
+                會員類別: ${category}<br/>`,
+            // <p style="color:red;"> 非去年年會參加會員</p>`,
+            duration: 10000,
+            type: "success",
+        });
+        // }
 
         handleUpdateList();
         getCheckData();
+        attendeeStatsRef?.value?.getRegistrationData();
 
         // 自動打印用戶名稱標籤（僅簽到成功時）
         if (submitCheckData.actionType === 1 && res.data?.attendeesVO?.member) {
