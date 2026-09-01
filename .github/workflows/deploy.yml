@@ -10,6 +10,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
     
       - name: Node.js setup
         uses: actions/setup-node@v4
@@ -27,7 +32,7 @@ jobs:
           VITE_APP_BASE_API: ${{ secrets.VITE_APP_BASE_API }}
           VITE_MINIO_API: ${{ secrets.VITE_MINIO_API }}
         run: |
-          npm install -g pnpm
+          pnpm config set onlyBuiltDependencies "esbuild,@parcel/watcher,vue-demi,bufferutil,utf-8-validate,es5-ext"
           pnpm install
           pnpm run build:prod
 
