@@ -5,7 +5,7 @@
       <el-table-column v-if="isIndexView" fixed prop="firstName" label="名字" :width="isDevice ? '90' : ''"
         :show-overflow-tooltip="isDevice" />
       <el-table-column v-if="isIndexView" fixed prop="lastName" label="姓氏" width="90" />
-      <el-table-column v-if="!isIndexView" prop="chineseName" label="姓名" width="100">
+      <el-table-column prop="chineseName" label="中文姓名" width="100">
         <template #default="scope">
           <span v-if="scope.row.chineseName">{{ scope.row.chineseName }}</span>
           <span v-else>{{ scope.row.firstName }} {{ scope.row.lastName }}</span>
