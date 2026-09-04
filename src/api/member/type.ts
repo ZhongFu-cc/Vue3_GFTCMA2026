@@ -27,6 +27,22 @@ export interface Member {
   remark?: string | null;
 }
 
+export interface MemberImportRowDetail {
+  rowNumber: number;
+  email: string;
+  chineseName: string;
+  reason: string;
+}
+
+export interface MemberImportResultVO {
+  totalCount: number;
+  importedCount: number;
+  skippedCount: number;
+  skippedRows: MemberImportRowDetail[];
+  duplicateEmailCount: number;
+  duplicateEmailRows: MemberImportRowDetail[];
+}
+
 export interface PutMemberForAdminInterface {
   memberId: string;
   idCard?: string;

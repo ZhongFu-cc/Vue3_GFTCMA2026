@@ -29,6 +29,8 @@
           </el-button>
 
           <el-button type="success" @click="downloadExcel">下載Excel</el-button>
+
+          <el-button type="success" @click="importExcelDialogState.openDialog">匯入會員名單</el-button>
         </div>
       </template>
 
@@ -88,6 +90,63 @@
     <el-dialog v-model="insertMemberDialogState.isOpen" title="新增會員" :width="insertMemberDialogState.width">
       <InsertMemberForm @close="insertMemberDialogState.closeDialog" />
     </el-dialog>
+
+    <!-- 匯入會員名單對話框 -->
+    <el-dialog v-model="importExcelDialogState.isOpen" title="匯入會員名單" :width="importExcelDialogState.width">
+      <div class="template-tips-content">
+        <el-button type="warning" @click="downloadImportTemplate">下載匯入模板</el-button>
+      </div>
+      <div class="upload-excel-content">
+        <el-upload ref="uploadRef" drag class="upload-demo" :limit="1" :on-change="handleUpload"
+          :auto-upload="false" :on-remove="handleRemove">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            Drop file here or <em>click to upload</em>
+          </div>
+        </el-upload>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button type="danger" plain @click="importExcelDialogState.closeDialog()">取消</el-button>
+          <el-button type="success" plain @click="handleImportExcel">確定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 匯入結果對話框 -->
+    <el-dialog v-model="importExcelResultDialogState.isOpen" title="匯入結果" width="50%">
+      <div v-if="importExcelResultDialogState.resultData">
+        <p>總共 {{ importExcelResultDialogState.resultData.totalCount }} 筆資料</p>
+        <p>成功匯入 {{ importExcelResultDialogState.resultData.importedCount }} 筆</p>
+        <p>跳過 {{ importExcelResultDialogState.resultData.skippedCount }} 筆</p>
+        <p>Email重複(仍已匯入) {{ importExcelResultDialogState.resultData.duplicateEmailCount }} 筆</p>
+
+        <div v-if="importExcelResultDialogState.resultData.skippedRows.length > 0">
+          <h3>跳過的資料</h3>
+          <el-table :data="importExcelResultDialogState.resultData.skippedRows" size="small" max-height="240">
+            <el-table-column prop="rowNumber" label="列號" width="80" />
+            <el-table-column prop="email" label="Email" />
+            <el-table-column prop="chineseName" label="中文姓名" width="120" />
+            <el-table-column prop="reason" label="原因" />
+          </el-table>
+        </div>
+
+        <div v-if="importExcelResultDialogState.resultData.duplicateEmailRows.length > 0">
+          <h3>Email重複的資料(已匯入)</h3>
+          <el-table :data="importExcelResultDialogState.resultData.duplicateEmailRows" size="small" max-height="240">
+            <el-table-column prop="rowNumber" label="列號" width="80" />
+            <el-table-column prop="email" label="Email" />
+            <el-table-column prop="chineseName" label="中文姓名" width="120" />
+            <el-table-column prop="reason" label="原因" />
+          </el-table>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button type="primary" plain @click="importExcelResultDialogState.closeDialog()">確定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -95,12 +154,13 @@
 import BasicComponent from '@/layout/components/Basic/index.vue'
 
 import { ref, reactive } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
-import { fetchMembersWithPaginationAndStatusApi, updateMemberApi, deleteMemberApi, batchDeleteMemberApi, downloadMemberExcelApi, assignTagsToMember } from '@/api/member'
+import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
+import type { UploadProps } from 'element-plus'
+import { fetchMembersWithPaginationAndStatusApi, updateMemberApi, deleteMemberApi, batchDeleteMemberApi, downloadMemberExcelApi, downloadMemberImportExcelTemplateApi, importMemberExcelApi, assignTagsToMember } from '@/api/member'
 import { getAllTagsApi } from '@/api/tag'
 
 
-import { Member, PutMemberForAdminInterface } from '@/api/member/type'
+import { Member, PutMemberForAdminInterface, MemberImportResultVO } from '@/api/member/type'
 import { tryCatch } from '@/utils/tryCatch'
 import InsertMemberForm from './components/InsertMemberForm.vue'
 import UpdateMemberForm from './components/UpdateMemberForm.vue'
@@ -118,6 +178,90 @@ const downloadExcel = async () => {
   link.setAttribute('download', '會員列表.xlsx');
   document.body.appendChild(link);
   link.click();
+}
+
+/**------------------- 匯入會員名單 ----------------------- */
+
+const downloadImportTemplate = async () => {
+  try {
+    let res = await downloadMemberImportExcelTemplateApi()
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', '會員名單匯入模板.xlsx');
+    document.body.appendChild(link);
+    link.click();
+  } catch (error) {
+    ElMessage.error("下載失敗" + error)
+  }
+}
+
+const importExcelDialogState = ref<DialogState>({
+  isOpen: false,
+  width: computed(() => (useAppStore().device === 'mobile') ? '90%' : '45%'),
+  openDialog: () => {
+    importExcelDialogState.value.isOpen = true
+  },
+  closeDialog: () => {
+    importExcelDialogState.value.isOpen = false
+    uploadRef.value?.clearFiles()
+    uploadFileList.value = []
+  }
+})
+
+const importExcelResultDialogState = ref({
+  isOpen: false,
+  resultData: null as MemberImportResultVO | null,
+  openDialog: (data: MemberImportResultVO) => {
+    importExcelResultDialogState.value.resultData = data
+    importExcelResultDialogState.value.isOpen = true
+  },
+  closeDialog: () => {
+    importExcelResultDialogState.value.isOpen = false
+    importExcelResultDialogState.value.resultData = null
+    fetchMemberListWithPaginationAndStatus()
+    importExcelDialogState.value.closeDialog()
+  }
+})
+
+const uploadRef = ref()
+const uploadFileList = ref<any>([])
+
+const handleUpload: UploadProps['onChange'] = (file, uploadFiles) => {
+  if (file.size == 0) {
+    ElMessage.error('File is empty')
+    return false
+  }
+  if (file.status === 'ready' && file.size) {
+    if (file.name.split('.').pop() !== 'xlsx' && file.name.split('.').pop() !== 'xls') {
+      ElMessage.error('File must be xlsx')
+      uploadFiles.pop()
+      return
+    }
+    uploadFileList.value.push(file)
+  }
+}
+
+const handleRemove: UploadProps['onRemove'] = (file, fileList) => {
+  uploadFileList.value = fileList
+}
+
+const handleImportExcel = async () => {
+  if (uploadFileList.value.length === 0) {
+    ElMessage.error('請先選擇檔案')
+    return
+  }
+  try {
+    const data = new FormData()
+    uploadFileList.value.forEach((file: any) => data.append('file', file.raw))
+    let res = await importMemberExcelApi(data)
+    ElMessage.success("上傳成功")
+    importExcelResultDialogState.value.openDialog(res.data)
+    uploadRef.value?.clearFiles()
+    uploadFileList.value = []
+  } catch (error) {
+    ElMessage.error("上傳失敗" + error)
+  }
 }
 
 

@@ -201,6 +201,31 @@ export function downloadMemberExcelApi(): AxiosPromise {
   });
 }
 
+/**
+ * 下載會員名單匯入模板
+ * @returns
+ */
+export function downloadMemberImportExcelTemplateApi(): AxiosPromise {
+  return request({
+    url: "/member/import-excel-template",
+    method: "get",
+    responseType: "arraybuffer",
+  });
+}
+
+/**
+ * 匯入會員名單Excel
+ * @param data
+ * @returns
+ */
+export function importMemberExcelApi(data: FormData): AxiosPromise {
+  return request({
+    url: "/member/import-excel",
+    method: "post",
+    data,
+  });
+}
+
 export function assignTagsToMember(data: any): AxiosPromise {
   return request({
     url: "/member/tag",
