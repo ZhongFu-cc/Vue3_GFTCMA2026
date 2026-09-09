@@ -913,7 +913,7 @@ const addNewLine = () => {
     x: textBounds.value.leftMargin + 1,
     y: safeY,
     fontSize: FONT_SETTINGS.DEFAULT_SIZE,
-    positionMode: 'fixed'
+    positionMode: 'center'
   }
 
   // 依 Y 座標插入，讓控制面板順序與實際排版一致

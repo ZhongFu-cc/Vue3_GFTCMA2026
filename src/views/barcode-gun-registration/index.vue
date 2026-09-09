@@ -230,7 +230,6 @@ const print = () => {
 const INCH_TO_PX = 96
 const INCH_TO_DOT = 300
 const PX_TO_DOT = INCH_TO_DOT / INCH_TO_PX
-const PRINT_X_COMPENSATION_MM = -3.0
 
 const labelSettings = reactive({
     width: 95,      // 標籤寬度 (mm)
@@ -307,7 +306,7 @@ const getPreciseWidth = (text: string,
     measureCtx.font = `${italic}${bold}${fontHeightPx}px "${faceName}"`
 
     const metrics = measureCtx.measureText(text)
-    const pureWidthPx = (metrics.actualBoundingBoxRight - metrics.actualBoundingBoxLeft) * 0.85
+    const pureWidthPx = metrics.actualBoundingBoxRight - metrics.actualBoundingBoxLeft
 
     return Math.round(pureWidthPx * PX_TO_DOT)
 }
@@ -498,7 +497,7 @@ const wrapTextByWidthMm = (text: string, fontSize: number, maxWidthMm: number): 
 }
 
 // 多行獨立設定打印函數
-const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: number, y: number, fontSize: number, textType: string }>) => {
+const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: number, y: number, fontSize: number, textType: string, textInfo: { textType: string }, positionMode?: string }>) => {
     if (!isConnected.value) {
         console.log('印表機未連接')
         return false
@@ -542,11 +541,10 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
 
         const safeLeft = textBounds.value.leftMargin
         const safeRight = labelSettings.width - textBounds.value.rightMargin
-        const availableWidthMm = Math.max(1, safeRight - safeLeft) + PRINT_X_COMPENSATION_MM
+        const usableWidthMm = Math.max(1, safeRight - safeLeft)
         const topBoundary = textBounds.value.topMargin
         const bottomBoundary = labelSettings.height - textBounds.value.bottomMargin
         const blockGapMm = 0.5
-        const usableHeightMm = bottomBoundary - topBoundary
 
         let flowCursorY = topBoundary
 
@@ -554,9 +552,17 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
         const FONT_DECREASE_STEP = 15
         const layoutSegments: Array<{ text: string, fontSize: number, x: number, y: number, textType: string }> = []
         sortedLines.forEach((line, index) => {
+            // 'fixed' 的行照設定/預覽的位置印出（靠左對齊，不置中）；
+            // 其餘（'center'、預設空字串）的行則依照實際文字內容動態置中，
+            // 行為等同 CSS text-align: center，會依每位與會者實際文字寬度自動調整，而不是共用同一個固定位置
+            const isFixed = line.positionMode === 'fixed'
 
             let currentFontSize = line.fontSize
             let wrappedLines: string[] = []
+
+            // 每一行判斷折行/縮字所用的可用寬度：
+            // fixed 行以該行自己的 x 為起點，center 行則用整個可用區域寬度
+            const lineAvailableWidthMm = isFixed ? Math.max(1, safeRight - line.x) : usableWidthMm
 
             // ================= 1. X 軸判定：優先縮小字型，縮到極限才折行 =================
             while (currentFontSize >= MIN_FONT_SIZE) {
@@ -565,23 +571,28 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
                 const fullTextWidthMm = fullTextWidthDots / INCH_TO_DOT * 25.4
 
                 // 如果單行寬度小於可用寬度，完美單行塞下！
-                if (fullTextWidthMm <= availableWidthMm) {
+                if (fullTextWidthMm <= lineAvailableWidthMm) {
                     wrappedLines = [line.text]
                     break // 跳出 while
                 }
 
                 // 如果超過寬度，且還能再縮小
-                console.log(currentFontSize > MIN_FONT_SIZE, `第 ${index + 1} 行文字寬度 (${fullTextWidthMm.toFixed(1)}mm) 超過可用寬度 (${availableWidthMm.toFixed(1)}mm)，嘗試縮小字型...`)
+                console.log(currentFontSize > MIN_FONT_SIZE, `第 ${index + 1} 行文字寬度 (${fullTextWidthMm.toFixed(1)}mm) 超過可用寬度 (${lineAvailableWidthMm.toFixed(1)}mm)，嘗試縮小字型...`)
                 if (currentFontSize > MIN_FONT_SIZE) {
                     currentFontSize -= FONT_DECREASE_STEP
                     console.log(`第 ${index + 1} 行文字 X 軸超寬，嘗試縮小字型至: ${currentFontSize}`)
-                    wrappedLines = wrapTextByWidthMm(line.text, currentFontSize, availableWidthMm)
+                    wrappedLines = wrapTextByWidthMm(line.text, currentFontSize, lineAvailableWidthMm)
                 } else {
                     // 已經縮到 12 了還是塞不下，逼不得已，呼叫換行機制
                     console.warn(`第 ${index + 1} 行字型已縮至極限 (${currentFontSize})，仍超寬，啟動換行機制`)
-                    wrappedLines = wrapTextByWidthMm(line.text, line.fontSize, availableWidthMm)
+                    wrappedLines = wrapTextByWidthMm(line.text, line.fontSize, lineAvailableWidthMm)
                     break // 跳出 while
                 }
+            }
+
+            // 字體本身就小於 MIN_FONT_SIZE，迴圈從未執行，wrappedLines 仍是空陣列 → 用原始字體換行作為保底，避免整行被吃掉
+            if (wrappedLines.length === 0) {
+                wrappedLines = wrapTextByWidthMm(line.text, currentFontSize, lineAvailableWidthMm)
             }
 
             // 印出排版前的真實狀態（深拷貝避免 console.log 延遲求值導致的顯示混淆）
@@ -589,25 +600,26 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
 
             // ================= 2. 依據最終確定的字型，計算 Y 軸與行高 =================
             const lineHeightMm = (currentFontSize / INCH_TO_DOT * 25.4) * 1.1
-            const startY = Math.max(line.y, flowCursorY)
+            const startY = Math.max(line.y, flowCursorY, topBoundary)
 
             wrappedLines.forEach((wrappedText, wrappedIndex) => {
                 const currentY = startY + wrappedIndex * lineHeightMm
 
-                // 量測縮小/折行後，各子段落文字的精確寬度以進行置中
-                const wrappedWidthMm = getPreciseWidth(wrappedText, currentFontSize, '0', 'Arial') / INCH_TO_DOT * 25.4
-                const centeredX = Math.max(
-                    safeLeft,
-                    safeLeft + (availableWidthMm - wrappedWidthMm) / 2
-                )
+                // fixed 行直接用設定的 x（與預覽一致，靠左對齊）；
+                // center 行則依實際文字寬度即時算出置中位置，讓每位與會者的內容各自置中
+                let segX = line.x
+                if (!isFixed) {
+                    const wrappedWidthMm = getPreciseWidth(wrappedText, currentFontSize, '0', 'Arial') / INCH_TO_DOT * 25.4
+                    segX = Math.max(safeLeft, safeLeft + (usableWidthMm - wrappedWidthMm) / 2)
+                }
 
                 // 將最終決定的 text, fontSize, x, y 推入排版陣列
                 layoutSegments.push({
                     text: wrappedText,
                     fontSize: currentFontSize, // 👈 這裡帶入動態縮小後的字型！
-                    x: centeredX,
+                    x: segX,
                     y: currentY,
-                    textType: line.textType
+                    textType: line.textInfo.textType
                 })
             })
 
@@ -618,50 +630,28 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
 
         console.log('布局分段:', layoutSegments)
 
-        if (layoutSegments.length > 0) {
-            const minY = layoutSegments.reduce((min, seg) => Math.min(min, seg.y), Number.POSITIVE_INFINITY)
-            const maxBottom = layoutSegments.reduce((max, seg) => {
-                const segHeight = (seg.fontSize / INCH_TO_DOT * 25.4) * 1.1
-                return Math.max(max, seg.y + segHeight)
-            }, Number.NEGATIVE_INFINITY)
+        layoutSegments.forEach((seg, segIndex) => {
+            if (seg.y > bottomBoundary) {
+                console.warn(`第${segIndex + 1}段超出下邊界，略過該段`)
+                return
+            }
 
-            const contentHeightMm = Math.max(0, maxBottom - minY)
-            const targetTopY = contentHeightMm >= usableHeightMm
-                ? topBoundary
-                : topBoundary + (usableHeightMm - contentHeightMm) / 2
-            const verticalOffset = targetTopY - minY
+            // 將 mm 轉換為 dots (假設 300 DPI)
+            const dpi = 300
+            const xDots = Math.round(seg.x * dpi / 25.4)
+            const yDots = Math.round(seg.y * dpi / 25.4)
 
-            layoutSegments.forEach((seg, segIndex) => {
-                const adjustedY = seg.y + verticalOffset
-                if (adjustedY > bottomBoundary) {
-                    console.warn(`第${segIndex + 1}段 Y 軸置中後超出下邊界，略過該段`)
-                    return
-                }
-
-
-
-                // TSC 印表機補償：向左微調（可依機台特性微調）
-                const compensatedX = seg.textType === 'chineseName' ? seg.x + 1.5 : seg.x + PRINT_X_COMPENSATION_MM > 0
-                    ? seg.x + PRINT_X_COMPENSATION_MM
-                    : seg.x
-
-                // 將 mm 轉換為 dots (假設 300 DPI)
-                const dpi = 300
-                const xDots = Math.round(compensatedX * dpi / 25.4)
-                const yDots = Math.round(adjustedY * dpi / 25.4)
-
-                tsc.windowsfont(
-                    String(xDots),
-                    String(yDots),
-                    String(seg.fontSize),
-                    '0', // rotation
-                    '2', // fontStyle (粗體)
-                    '0', // fontUnderline
-                    'Arial', // fontFamily
-                    seg.text
-                )
-            })
-        }
+            tsc.windowsfont(
+                String(xDots),
+                String(yDots),
+                String(seg.fontSize),
+                '0', // rotation
+                '2', // fontStyle (粗體)
+                '0', // fontUnderline
+                'Arial', // fontFamily
+                seg.text
+            )
+        })
 
         // 列印標籤
         tsc.printlabel(1, 1)
@@ -724,12 +714,14 @@ const printUserNameLabel = async (attendee: any) => {
 
         const userName = `${firstName} ${lastName}`
         labelSettings.lines.forEach((line) => {
-            line.text = '' // 先清空所有行文字  
+            line.text = '' // 先清空所有行文字
+            console.log(line.text, line.textInfo)
             switch (line.textInfo.textType) {
                 case 'userName':
                     line.text = userName
                     break
                 case 'chineseName':
+                    console.log(memberInfo)
                     line.text = memberInfo.chineseName || ''
                     line.textType = 'chineseName'
                     break
@@ -745,7 +737,10 @@ const printUserNameLabel = async (attendee: any) => {
             }
         })
         // 使用多行設定來打印
-        const lines = labelSettings.lines.filter(line => line.text.trim() !== '')
+        const lines = labelSettings.lines.filter((line) => {
+            console.log('過濾後的行內容:', line)
+            return line.text.trim() !== ''
+        })
 
         if (lines.length === 0) {
             // 如果沒有設定，使用預設設定
@@ -783,7 +778,8 @@ const printUserNameLabel = async (attendee: any) => {
                 y: line.y,
                 fontSize: line.fontSize,
                 positionMode: line.positionMode,
-                textType: line.textType
+                textType: line.textInfo.textType,
+                textInfo: line.textInfo
             }))
 
             const success = await printLabelWithMultiLineSettings(printLines)
