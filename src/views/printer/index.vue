@@ -11,7 +11,9 @@ import PrintPreview from './components/printPreview.vue';
 import LabelSetting from './components/labelSetting.vue';
 
 import { useTSC } from '@/composables/useTSC';
-import { ElNotification } from 'element-plus';
+import { useLabelSettings, LABEL_MARGINS } from '@/composables/useLabelSettings';
+import { computeMultiLineLayout } from '@/utils/labelLayout';
+import { ElNotification, ElMessage } from 'element-plus';
 
 const { labelConfig, isConnected, connectionType, selectedPrinter } = useTSC({
   connectionType: 'usb',
@@ -24,47 +26,10 @@ const { labelConfig, isConnected, connectionType, selectedPrinter } = useTSC({
   }
 })
 
-/**
- * 多行獨立設定的標籤配置
- * 每行可以獨立設定文字內容、位置和字體大小
- * lines 陣列中的每個物件代表一行文字的設定，包括:
- * - text: 文字內容
- * - textType: 文字類型 (用於識別和顯示)
- * - textInfo: 顯示用的文字資訊 (可選)
- * - x: X 軸位置 (mm)
- * - y: Y 軸位置 (mm)
- * - fontSize: 字體大小
- */
-const labelSettings = reactive({
-  width: 95,      // 標籤寬度 (mm)
-  height: 60,     // 標籤高度 (mm)
-  lines: [
-    {
-      text: 'English Name', // 第一行文字內容
-      textType: 'userName',
-      textInfo: {
-        textType: 'userName',
-        textShow: 'English Name'
-      },
-      x: 12.6,
-      y: 19.0,
-      fontSize: 155
-    },
-    {
-      text: '中文名',
-      textType: 'chineseName',
-      textInfo: {
-        textType: 'chineseName',
-        textShow: '中文名'
-      },
-      x: 34.6,
-      y: 32.0,
-      fontSize: 120
-    }
-  ]
-})
+// 多行獨立設定的標籤配置，與 barcode-gun-registration/index.vue 共用同一份預設值/暫存邏輯
+const { labelSettings, setTempSetting: persistLabelSettings, getTempSetting } = useLabelSettings()
 
-const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: number, y: number, fontSize: number }>) => {
+const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: number, y: number, fontSize: number, textType: string, positionMode?: string }>) => {
   if (!isConnected.value) {
     console.log('印表機未連接')
     return false
@@ -104,25 +69,29 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
 
     console.log('開始打印多行獨立設定:', lines)
 
-    // 為每行設定獨立的文字
-    lines.forEach((line, index) => {
-      // TSC 印表機補償：向右微調以修正偏左問題  
-      const compensatedX = line.x // 向右偏移 1mm
+    // 排版計算（縮字/換行/座標）改用與「實際報到列印」「畫布預覽」共用的排版引擎，
+    // 確保「測試列印」能真正重現報到時的換行/縮字行為
+    const layoutSegments = computeMultiLineLayout(lines, {
+      labelWidthMm: width,
+      labelHeightMm: height,
+      margins: LABEL_MARGINS
+    })
 
+    layoutSegments.forEach((seg) => {
       // 將 mm 轉換為 dots (假設 300 DPI)
       const dpi = 300
-      const xDots = Math.round(compensatedX * dpi / 25.4)
-      const yDots = Math.round(line.y * dpi / 25.4)
+      const xDots = Math.round(seg.x * dpi / 25.4)
+      const yDots = Math.round(seg.y * dpi / 25.4)
 
       tsc.windowsfont(
         String(xDots),
         String(yDots),
-        String(line.fontSize),
+        String(seg.fontSize),
         '0', // rotation
         '2', // fontStyle (粗體)
         '0', // fontUnderline
-        'Arial', // fontFamily
-        line.text
+        'Microsoft JhengHei', // fontFamily
+        seg.text
       )
     })
 
@@ -183,7 +152,9 @@ const printLabel = async () => {
       text: line.text,
       x: line.x,
       y: line.y,
-      fontSize: line.fontSize
+      fontSize: line.fontSize,
+      textType: line.textInfo.textType,
+      positionMode: line.positionMode
     }))
 
 
@@ -214,7 +185,7 @@ const printLabel = async () => {
 }
 
 const setTempSetting = () => {
-  localStorage.setItem('temporaryLabelSettings', JSON.stringify(labelSettings))
+  persistLabelSettings()
   ElNotification.success({
     title: '保存成功',
     message: `已保存當前標籤設定為臨時設定
@@ -222,14 +193,6 @@ const setTempSetting = () => {
     尺寸: ${labelSettings.width}mm x ${labelSettings.height}mm
     `
   })
-}
-
-const getTempSetting = () => {
-  const tempSettings = localStorage.getItem('temporaryLabelSettings')
-  if (tempSettings) {
-    console.log('獲取到臨時設定:', tempSettings)
-    return JSON.parse(tempSettings)
-  }
 }
 
 defineExpose({
