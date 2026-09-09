@@ -110,6 +110,8 @@
 <script lang="ts" setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useTSC } from '@/composables/useTSC'
+import { LABEL_MARGINS } from '@/composables/useLabelSettings'
+import { computeMultiLineLayout, type LabelLine } from '@/utils/labelLayout'
 import { ElMessage } from 'element-plus'
 
 /**
@@ -154,13 +156,7 @@ const CONVERSION_FACTORS = {
 // 計算像素轉點數係數
 const PX_TO_DOT = CONVERSION_FACTORS.INCH_TO_DOT / CONVERSION_FACTORS.INCH_TO_PX
 
-// 標籤安全邊距設定 (TSC印表機邊距要求)
-const LABEL_MARGINS = {
-  LEFT: 2,      // 左邊距 (mm)
-  RIGHT: 2,     // 右邊距 (mm)
-  TOP: 1,       // 上邊距 (mm)
-  BOTTOM: 1     // 下邊距 (mm)
-} as const
+// 標籤安全邊距設定 (TSC印表機邊距要求) 改用 useLabelSettings 匯出的共用邊距，避免與其他畫面再度不同步
 
 // 字體設定
 const FONT_SETTINGS = {
@@ -284,7 +280,7 @@ const getPreciseWidth = (
  */
 const textBounds = computed(() => {
   // 取得TSC印表機的安全邊距設定
-  const { LEFT: leftMargin, RIGHT: rightMargin, TOP: topMargin, BOTTOM: bottomMargin } = LABEL_MARGINS
+  const { left: leftMargin, right: rightMargin, top: topMargin, bottom: bottomMargin } = LABEL_MARGINS
 
   // 計算每一行的邊界資訊
   const linesBounds = labelSettings.value.lines.map((line: any, index: number) => {
@@ -412,13 +408,13 @@ const updatePreview = () => {
   drawMarginLines(ctx)
   drawGridLines(ctx)
 
-  // 繪製文字內容並檢查邊界
-  const hasOutOfBounds = drawTextContent(ctx)
+  // 繪製文字內容（所見即所得：實際換行/縮字後的結果）
+  const hasAutoAdjusted = drawTextContent(ctx)
 
-  // 繪製資訊和警告
+  // 繪製資訊，若有欄位被自動縮字/換行則加註輕量提示
   drawSizeInfo(ctx)
-  if (hasOutOfBounds) {
-    drawOutOfBoundsWarning(ctx)
+  if (hasAutoAdjusted) {
+    drawAutoAdjustNotice(ctx)
   }
 }
 
@@ -515,82 +511,63 @@ const drawGridLines = (ctx: CanvasRenderingContext2D) => {
 }
 
 /**
- * 繪製文字內容並檢查邊界
+ * 繪製文字內容 - 所見即所得：與「測試列印」「實際報到列印」共用同一顆排版引擎，
+ * 畫出來的就是縮字/換行後實際會印出的結果，而不是每個欄位單行硬畫。
  * @param {CanvasRenderingContext2D} ctx - 畫布上下文
- * @returns {boolean} 是否有文字超出邊界
+ * @returns {boolean} 是否有欄位被自動縮小字級或換行
  */
 const drawTextContent = (ctx: CanvasRenderingContext2D): boolean => {
   const canvasMargin = 20
   const scale = CONVERSION_FACTORS.CANVAS_SCALE
-  let hasOutOfBounds = false
 
-  // 繪製每一行文字（支援獨立設定）
-  textBounds.value.lines.forEach((line: any, index: number) => {
-    // 計算字體大小，讓它與邊界框匹配
-    const fontSizeMm = line.fontSize / CONVERSION_FACTORS.INCH_TO_DOT * CONVERSION_FACTORS.MM_TO_INCHES
+  const lines: LabelLine[] = labelSettings.value.lines.map((line: any) => ({
+    text: line.text,
+    x: line.x,
+    y: line.y,
+    fontSize: line.fontSize,
+    textType: line.textInfo?.textType ?? line.textType,
+    positionMode: line.positionMode
+  }))
+
+  const layoutSegments = computeMultiLineLayout(lines, {
+    labelWidthMm: labelSettings.value.width,
+    labelHeightMm: labelSettings.value.height,
+    margins: LABEL_MARGINS
+  })
+
+  // 依實際排版結果繪製每一段文字（可能因換行而比設定的行數更多）
+  layoutSegments.forEach((seg) => {
+    const fontSizeMm = seg.fontSize / CONVERSION_FACTORS.INCH_TO_DOT * CONVERSION_FACTORS.MM_TO_INCHES
     const fontSize = fontSizeMm * scale
 
-    // 設定字體樣式
     ctx.font = `bold ${fontSize}px Arial`
     ctx.fillStyle = '#000000'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'alphabetic' // 使用基線，與TSC印表機一致
 
     // 計算文字位置（TSC座標系統：Y座標為基線位置）
-    const textX = canvasMargin + line.x * scale
-    const fontHeightPx = fontSize
-    const textY = canvasMargin + line.y * scale + fontHeightPx
+    const textX = canvasMargin + seg.x * scale
+    const textY = canvasMargin + seg.y * scale + fontSize
 
     // 套用水平縮放並繪製文字
     ctx.save()
     ctx.translate(textX, textY)
     ctx.scale(CONVERSION_FACTORS.HORIZONTAL_SCALE, 1)
-    ctx.fillText(line.text, 0, 0)
+    ctx.fillText(seg.text, 0, 0)
     ctx.restore()
-
-    // 繪製文字邊界框和位置指示器
-    drawTextBoundingBox(ctx, line, index, textX, textY, fontHeightPx)
-    drawPositionIndicator(ctx, line, index, textX, canvasMargin, scale)
-
-    // 檢查是否超出範圍
-    if (isLineOutOfBounds(line)) {
-      hasOutOfBounds = true
-      logOutOfBoundsWarning(line, index)
-    }
   })
 
-  return hasOutOfBounds
-}
+  // 每個「欄位設定」錨點的位置指示器（對應設定面板中的每一行，而非換行後的每一段）
+  textBounds.value.lines.forEach((line: any, index: number) => {
+    const textX = canvasMargin + line.x * scale
+    drawPositionIndicator(ctx, line, index, textX, canvasMargin, scale)
+  })
 
-/**
- * 繪製文字邊界框
- * @param {CanvasRenderingContext2D} ctx - 畫布上下文
- * @param {any} line - 文字行資料
- * @param {number} index - 行索引
- * @param {number} textX - 文字X位置
- * @param {number} textY - 文字Y位置  
- * @param {number} fontHeightPx - 字體高度(像素)
- */
-const drawTextBoundingBox = (
-  ctx: CanvasRenderingContext2D,
-  line: any,
-  index: number,
-  textX: number,
-  textY: number,
-  fontHeightPx: number
-) => {
-  const lineColor = index === 0 ? '#ff9800' : '#00bcd4' // 第一行橙色，其他行青色
-  const scale = CONVERSION_FACTORS.CANVAS_SCALE
-  const textWidthPx = line.textWidthMm * scale * CONVERSION_FACTORS.HORIZONTAL_SCALE
-  const textHeightPx = line.textHeightMm * scale
-
-  ctx.strokeStyle = lineColor
-  ctx.lineWidth = 1
-  ctx.setLineDash([2, 2])
-
-  // 邊界框從Y座標向上繪製（因為文字是向上延伸的）
-  ctx.strokeRect(textX, textY - fontHeightPx, textWidthPx, textHeightPx)
-  ctx.setLineDash([])
+  // 若有欄位實際印出的字級比設定值小，代表觸發了縮字/換行機制
+  return labelSettings.value.lines.some((line: any) => {
+    const textType = line.textInfo?.textType ?? line.textType
+    return layoutSegments.some(seg => seg.textType === textType && seg.fontSize < line.fontSize)
+  })
 }
 
 /**
@@ -630,49 +607,6 @@ const drawPositionIndicator = (
 }
 
 /**
- * 檢查文字行是否超出邊界
- * @param {any} line - 文字行資料
- * @returns {boolean} 是否超出邊界
- */
-const isLineOutOfBounds = (line: any): boolean => {
-  const textRight = line.x + line.textWidthMm
-  const textBottom = line.y + line.textHeightMm
-
-  return (
-    line.x < textBounds.value.leftMargin ||
-    line.y < textBounds.value.topMargin ||
-    line.x > line.maxX ||
-    line.y > line.maxY ||
-    textRight > (labelSettings.value.width - textBounds.value.rightMargin) ||
-    textBottom > (labelSettings.value.height - textBounds.value.bottomMargin)
-  )
-}
-
-/**
- * 記錄超出邊界警告
- * @param {any} line - 文字行資料
- * @param {number} index - 行索引
- */
-const logOutOfBoundsWarning = (line: any, index: number) => {
-  const textRight = line.x + line.textWidthMm
-  const textBottom = line.y + line.textHeightMm
-
-  console.warn(`第${index + 1}行超出標籤範圍:`, {
-    position: { x: line.x, y: line.y },
-    textSize: { width: line.textWidthMm, height: line.textHeightMm },
-    textEnd: { x: textRight, y: textBottom },
-    labelSize: { width: labelSettings.value.width, height: labelSettings.value.height },
-    line: line.text,
-    safeArea: {
-      minX: textBounds.value.leftMargin,
-      minY: textBounds.value.topMargin,
-      maxX: line.maxX,
-      maxY: line.maxY
-    }
-  })
-}
-
-/**
  * 繪製尺寸資訊
  * @param {CanvasRenderingContext2D} ctx - 畫布上下文
  */
@@ -698,32 +632,24 @@ const drawSizeInfo = (ctx: CanvasRenderingContext2D) => {
 }
 
 /**
- * 繪製超出邊界警告
+ * 繪製「已自動縮字/換行」的輕量提示
+ * 上方畫布已經是實際換行/縮字後的所見即所得結果，這裡只用一行文字告知有欄位被自動調整，
+ * 不再用猜測性的紅色警告遮罩掩蓋真實預覽。
  * @param {CanvasRenderingContext2D} ctx - 畫布上下文
  */
-const drawOutOfBoundsWarning = (ctx: CanvasRenderingContext2D) => {
+const drawAutoAdjustNotice = (ctx: CanvasRenderingContext2D) => {
   const canvasMargin = 20
   const scale = CONVERSION_FACTORS.CANVAS_SCALE
-  const labelWidth = labelSettings.value.width * scale
   const labelHeight = labelSettings.value.height * scale
 
-  // 繪製半透明紅色遮罩
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-  ctx.fillRect(canvasMargin, canvasMargin, labelWidth, labelHeight)
-
-  // 繪製警告文字
-  ctx.fillStyle = '#ff0000'
-  ctx.textAlign = 'center'
-
-  const centerX = canvasMargin + labelWidth / 2
-  const centerY = canvasMargin + labelHeight / 2
-
-  ctx.font = `bold ${canvasFontSizes.value.warningTitle}px Arial`
-  ctx.fillText('⚠️ 部分文字超出安全範圍!', centerX, centerY - 8)
-
-  ctx.font = `${canvasFontSizes.value.warningText}px Arial`
-  ctx.fillText('請調整文字位置或大小', centerX, centerY + 10)
-  ctx.fillText('否則打印會自動調整文字大小', centerX, centerY + 25)
+  ctx.fillStyle = '#e6a23c'
+  ctx.textAlign = 'left'
+  ctx.font = `${canvasFontSizes.value.sizeInfo}px Arial`
+  ctx.fillText(
+    'ℹ️ 部分欄位文字較長，已自動縮小字級/換行（如上方預覽）',
+    canvasMargin,
+    canvasMargin + labelHeight + 45
+  )
 }
 
 /**
@@ -913,7 +839,7 @@ const addNewLine = () => {
     x: textBounds.value.leftMargin + 1,
     y: safeY,
     fontSize: FONT_SETTINGS.DEFAULT_SIZE,
-    positionMode: 'fixed'
+    positionMode: 'center'
   }
 
   // 依 Y 座標插入，讓控制面板順序與實際排版一致
