@@ -56,12 +56,14 @@ const CJK_REGEX = /[一-鿿぀-ヿ가-힣＀-￯]/
 // 純英文/數字（不含任何 CJK 字元）的視覺高度比中文矮一截（英文大寫沒有下伸部，
 // 中文字身框幾乎被填滿），同一字級印出來英文行會比中文行看起來偏上；
 // 這裡把純英文/數字行的 Y 座標往下補償一點，讓視覺上跟中文對齊。
-// 這是依常見字型下伸部比例抓的起始估計值，需要用實際印表機列印結果比對後微調。
-const LATIN_BASELINE_OFFSET_RATIO = 0.25
+// 實測發現這個補償量不會隨字級等比例放大（字級縮小後補償量剛好，字級沒縮小時若用比例
+// 反而補償過多），所以改用固定量（單位: dot），不管字級大小都補償同樣的量。
+// 這是依「縮小後字級 (~120 dot) 補償剛好」回推的起始估計值，需要用實際印表機列印結果比對後微調。
+const LATIN_BASELINE_OFFSET_DOTS = 30
 
-function getVerticalOffsetMm(text: string, fontSizeDots: number, dpi: number): number {
+function getVerticalOffsetMm(text: string, dpi: number): number {
     if (CJK_REGEX.test(text)) return 0
-    return (fontSizeDots / dpi * MM_PER_INCH) * LATIN_BASELINE_OFFSET_RATIO
+    return LATIN_BASELINE_OFFSET_DOTS / dpi * MM_PER_INCH
 }
 
 let measureCanvas: HTMLCanvasElement | null = null
@@ -260,7 +262,7 @@ export function computeMultiLineLayout(
         }
 
         wrappedLines.forEach((wrappedText, wrappedIndex) => {
-            const currentY = startY + wrappedIndex * lineHeightMm + getVerticalOffsetMm(wrappedText, currentFontSize, dpi)
+            const currentY = startY + wrappedIndex * lineHeightMm + getVerticalOffsetMm(wrappedText, dpi)
 
             // fixed 行直接用設定的 x；center 行依實際文字寬度即時算出置中位置
             let segX = line.x
