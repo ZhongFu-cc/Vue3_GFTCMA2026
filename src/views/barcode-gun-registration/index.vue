@@ -47,9 +47,9 @@
                             <el-card v-for="item in showAttendeesList" class="checkin-data-card">
                                 <div class="member-info" @click="openDrawer(item)">
                                     <p class="attendee-name" v-if="item.member.chineseName">{{ item.member.chineseName
-                                        }}</p>
+                                    }}</p>
                                     <p class="attendee-name" v-else>{{ item.member.firstName }} {{ item.member.lastName
-                                        }}</p>
+                                    }}</p>
                                     <p>{{ memberEnums[item.member.category] }}</p>
                                 </div>
                                 <el-icon class="checkin-icon" :class="item.isCheckedIn ? 'checkin' : ''"
@@ -115,7 +115,7 @@
                     </el-form-item>
                     <el-form-item label="會員姓名">
                         <el-text v-if="attendee.member && attendee.member.chineseName">{{ attendee.member.chineseName
-                            }}</el-text>
+                        }}</el-text>
                         <el-text v-else>{{ attendee.member.firstName }}{{ attendee.member.lastName }}</el-text>
                     </el-form-item>
                     <el-form-item label="會員類別">
@@ -173,6 +173,8 @@ import AttendeesStats from "@/components/AttendeesRegistration/index.vue";
 import { checkinApi, deleteLastCheckinRecordApi, getCheckDataApi } from "@/api/checkin";
 import { useBarcodeGun } from "@/composables/useBarcodeGun";
 import { useTSC, type PrintData } from "@/composables/useTSC";
+import { useLabelSettings, LABEL_MARGINS } from "@/composables/useLabelSettings";
+import { measureTextWidthDots, computeMultiLineLayout } from "@/utils/labelLayout";
 import { ElNotification, ElMessage, FormInstance } from "element-plus";
 import {
     Promotion,
@@ -227,40 +229,7 @@ const print = () => {
 // 標籤設定和預覽
 
 
-const INCH_TO_PX = 96
-const INCH_TO_DOT = 300
-const PX_TO_DOT = INCH_TO_DOT / INCH_TO_PX
-
-const labelSettings = reactive({
-    width: 95,      // 標籤寬度 (mm)
-    height: 60,     // 標籤高度 (mm)
-    lines: [
-        {
-            text: 'English Name', // 第一行文字內容
-            textType: 'userName',
-            textInfo: {
-                textType: 'userName',
-                textShow: 'English Name'
-            },
-            x: 3,           // 第一行 X 軸位置 (mm)
-            y: 2,           // 第一行 Y 軸位置 (mm)
-            fontSize: 155,   // 第一行字體大小
-            positionMode: ''
-        },
-        {
-            text: '中文名', // 第二行文字內容
-            textType: 'chineseName',
-            textInfo: {
-                textType: 'chineseName',
-                textShow: '中文名'
-            },
-            x: 8,           // 第二行 X 軸位置 (mm) - 可獨立設定
-            y: 15,          // 第二行 Y 軸位置 (mm) - 可獨立設定
-            fontSize: 130,   // 第二行字體大小 - 可獨立設定
-            positionMode: ''
-        }
-    ]
-})
+const { labelSettings, loadTemporaryStoredSettings: loadStoredLabelSettings } = useLabelSettings()
 
 // 監聽 labelSettings 變化並更新 labelConfig
 watch(
@@ -285,39 +254,10 @@ watch(
     { deep: true }
 )
 
-let measureCanvas: HTMLCanvasElement | null = null
-let measureCtx: CanvasRenderingContext2D | null = null
-
-const getPreciseWidth = (text: string,
-    fontHeightDots: number,
-    fontStyle: any,
-    faceName: string) => {
-    if (!measureCanvas) {
-        measureCanvas = document.createElement('canvas')
-        measureCtx = measureCanvas.getContext('2d')
-    }
-    if (!measureCtx) return 0
-
-    // 將 mm 轉回瀏覽器像素供測量 (假設 1mm = 3.78px)
-    const fontHeightPx = fontHeightDots / PX_TO_DOT
-    const italic = (fontStyle === '1' || fontStyle === '3') ? 'italic ' : ''
-    const bold = (fontStyle === '2' || fontStyle === '3') ? 'bold ' : ''
-
-    measureCtx.font = `${italic}${bold}${fontHeightPx}px "${faceName}"`
-
-    const metrics = measureCtx.measureText(text)
-    const pureWidthPx = metrics.actualBoundingBoxRight - metrics.actualBoundingBoxLeft
-
-    return Math.round(pureWidthPx * PX_TO_DOT)
-}
-
 // 計算文字邊界和安全區域 - 支援多行獨立設定
 const textBounds = computed(() => {
-    // 考慮TSC印表機的邊距
-    const leftMargin = 2
-    const rightMargin = 2
-    const topMargin = 1
-    const bottomMargin = 1
+    // 考慮TSC印表機的邊距（與 useLabelSettings 共用同一份，避免與其他畫面的邊距再度不同步）
+    const { left: leftMargin, right: rightMargin, top: topMargin, bottom: bottomMargin } = LABEL_MARGINS
 
     // 計算每一行的邊界信息
     const linesBounds = labelSettings.lines.map((line, index) => {
@@ -325,7 +265,7 @@ const textBounds = computed(() => {
         const lineHeightMm = fontSizeMm * 0.9   // 單行高度
 
         // 計算這一行的寬度
-        const lineWidthMm = getPreciseWidth(line.text, line.fontSize, '0', 'Arial') / 300 * 25.4 // 將字體寬度轉換為毫米
+        const lineWidthMm = measureTextWidthDots(line.text, line.fontSize, '0', 'Arial') / 300 * 25.4 // 將字體寬度轉換為毫米
 
         // 計算安全的最大位置（確保文字不會超出標籤邊界）
         const maxX = Math.max(leftMargin, labelSettings.width - lineWidthMm - rightMargin)
@@ -445,57 +385,6 @@ const centerText = () => {
 
 
 
-// 自動打印開關
-
-const wrapTextByWidthMm = (text: string, fontSize: number, maxWidthMm: number): string[] => {
-    console.log(`開始換行計算 - 字體大小: ${fontSize}, 可用寬度: ${maxWidthMm}mm, 原始文字: "${text}"`)
-    const normalizedText = (text || '').trim()
-    if (!normalizedText) return []
-    if (maxWidthMm <= 0) return [normalizedText]
-
-    const wrappedLines: string[] = []
-    let currentLine = ''
-
-    for (const char of Array.from(normalizedText)) {
-        if (!currentLine && /\s/.test(char)) {
-            continue
-        }
-
-        const candidate = currentLine + char
-        const candidateWidthMm = getPreciseWidth(candidate, fontSize, '0', 'Arial') / INCH_TO_DOT * 25.4
-
-        if (!currentLine || candidateWidthMm <= maxWidthMm) {
-            currentLine = candidate
-            continue
-        }
-
-        let breakIndex = -1
-        for (let i = currentLine.length - 1; i >= 0; i--) {
-            if (/\s/.test(currentLine[i])) {
-                breakIndex = i
-                break
-            }
-        }
-
-        if (breakIndex >= 0) {
-            const linePart = currentLine.slice(0, breakIndex).trimEnd()
-            if (linePart) {
-                wrappedLines.push(linePart)
-            }
-            currentLine = (currentLine.slice(breakIndex + 1) + char).trimStart()
-        } else {
-            wrappedLines.push(currentLine.trimEnd())
-            currentLine = char.trimStart()
-        }
-    }
-
-    if (currentLine.trim()) {
-        wrappedLines.push(currentLine.trim())
-    }
-
-    return wrappedLines.length > 0 ? wrappedLines : [normalizedText]
-}
-
 // 多行獨立設定打印函數
 const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: number, y: number, fontSize: number, textType: string, textInfo: { textType: string }, positionMode?: string }>) => {
     if (!isConnected.value) {
@@ -534,108 +423,28 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
         const { width, height } = labelSettings
         console.log(`設定紙張尺寸: ${width}mm x ${height}mm`)
         tsc.setup(width, height, '4', '12', '0', '3', '0')
-        // 先依 Y 軸排序後進行動態重排：前一行換行時，後續行會自動下推避免重疊
-        const sortedLines = lines
-            .map((line, order) => ({ ...line, order }))
-            .sort((a, b) => a.y - b.y || a.order - b.order)
 
-        const safeLeft = textBounds.value.leftMargin
-        const safeRight = labelSettings.width - textBounds.value.rightMargin
-        const usableWidthMm = Math.max(1, safeRight - safeLeft)
-        const topBoundary = textBounds.value.topMargin
-        const bottomBoundary = labelSettings.height - textBounds.value.bottomMargin
-        const blockGapMm = 0.5
-
-        let flowCursorY = topBoundary
-
-        const MIN_FONT_SIZE = 120
-        const FONT_DECREASE_STEP = 15
-        const layoutSegments: Array<{ text: string, fontSize: number, x: number, y: number, textType: string }> = []
-        sortedLines.forEach((line, index) => {
-            // 'fixed' 的行照設定/預覽的位置印出（靠左對齊，不置中）；
-            // 其餘（'center'、預設空字串）的行則依照實際文字內容動態置中，
-            // 行為等同 CSS text-align: center，會依每位與會者實際文字寬度自動調整，而不是共用同一個固定位置
-            const isFixed = line.positionMode === 'fixed'
-
-            let currentFontSize = line.fontSize
-            let wrappedLines: string[] = []
-
-            // 每一行判斷折行/縮字所用的可用寬度：
-            // fixed 行以該行自己的 x 為起點，center 行則用整個可用區域寬度
-            const lineAvailableWidthMm = isFixed ? Math.max(1, safeRight - line.x) : usableWidthMm
-
-            // ================= 1. X 軸判定：優先縮小字型，縮到極限才折行 =================
-            while (currentFontSize >= MIN_FONT_SIZE) {
-                // 計算「整行不換行」時的精確寬度 (公釐)
-                const fullTextWidthDots = getPreciseWidth(line.text, currentFontSize, '0', 'Arial')
-                const fullTextWidthMm = fullTextWidthDots / INCH_TO_DOT * 25.4
-
-                // 如果單行寬度小於可用寬度，完美單行塞下！
-                if (fullTextWidthMm <= lineAvailableWidthMm) {
-                    wrappedLines = [line.text]
-                    break // 跳出 while
-                }
-
-                // 如果超過寬度，且還能再縮小
-                console.log(currentFontSize > MIN_FONT_SIZE, `第 ${index + 1} 行文字寬度 (${fullTextWidthMm.toFixed(1)}mm) 超過可用寬度 (${lineAvailableWidthMm.toFixed(1)}mm)，嘗試縮小字型...`)
-                if (currentFontSize > MIN_FONT_SIZE) {
-                    currentFontSize -= FONT_DECREASE_STEP
-                    console.log(`第 ${index + 1} 行文字 X 軸超寬，嘗試縮小字型至: ${currentFontSize}`)
-                    wrappedLines = wrapTextByWidthMm(line.text, currentFontSize, lineAvailableWidthMm)
-                } else {
-                    // 已經縮到 12 了還是塞不下，逼不得已，呼叫換行機制
-                    console.warn(`第 ${index + 1} 行字型已縮至極限 (${currentFontSize})，仍超寬，啟動換行機制`)
-                    wrappedLines = wrapTextByWidthMm(line.text, line.fontSize, lineAvailableWidthMm)
-                    break // 跳出 while
-                }
+        // 排版計算（縮字/換行/座標）改用與「測試列印」「畫布預覽」共用的排版引擎，
+        // 確保三處算出來的結果完全一致
+        const layoutSegments = computeMultiLineLayout(
+            lines.map(line => ({
+                text: line.text,
+                x: line.x,
+                y: line.y,
+                fontSize: line.fontSize,
+                textType: line.textInfo.textType,
+                positionMode: line.positionMode
+            })),
+            {
+                labelWidthMm: width,
+                labelHeightMm: height,
+                margins: LABEL_MARGINS
             }
-
-            // 字體本身就小於 MIN_FONT_SIZE，迴圈從未執行，wrappedLines 仍是空陣列 → 用原始字體換行作為保底，避免整行被吃掉
-            if (wrappedLines.length === 0) {
-                wrappedLines = wrapTextByWidthMm(line.text, currentFontSize, lineAvailableWidthMm)
-            }
-
-            // 印出排版前的真實狀態（深拷貝避免 console.log 延遲求值導致的顯示混淆）
-            console.log(`第${index + 1}行排版計算 - 字型: ${currentFontSize}, 行數: ${wrappedLines.length}`)
-
-            // ================= 2. 依據最終確定的字型，計算 Y 軸與行高 =================
-            const lineHeightMm = (currentFontSize / INCH_TO_DOT * 25.4) * 1.1
-            const startY = Math.max(line.y, flowCursorY, topBoundary)
-
-            wrappedLines.forEach((wrappedText, wrappedIndex) => {
-                const currentY = startY + wrappedIndex * lineHeightMm
-
-                // fixed 行直接用設定的 x（與預覽一致，靠左對齊）；
-                // center 行則依實際文字寬度即時算出置中位置，讓每位與會者的內容各自置中
-                let segX = line.x
-                if (!isFixed) {
-                    const wrappedWidthMm = getPreciseWidth(wrappedText, currentFontSize, '0', 'Arial') / INCH_TO_DOT * 25.4
-                    segX = Math.max(safeLeft, safeLeft + (usableWidthMm - wrappedWidthMm) / 2)
-                }
-
-                // 將最終決定的 text, fontSize, x, y 推入排版陣列
-                layoutSegments.push({
-                    text: wrappedText,
-                    fontSize: currentFontSize, // 👈 這裡帶入動態縮小後的字型！
-                    x: segX,
-                    y: currentY,
-                    textType: line.textInfo.textType
-                })
-            })
-
-
-            // 更新下一行的 Y 軸游標起點
-            flowCursorY = startY + wrappedLines.length * lineHeightMm + blockGapMm
-        })
+        )
 
         console.log('布局分段:', layoutSegments)
 
-        layoutSegments.forEach((seg, segIndex) => {
-            if (seg.y > bottomBoundary) {
-                console.warn(`第${segIndex + 1}段超出下邊界，略過該段`)
-                return
-            }
-
+        layoutSegments.forEach((seg) => {
             // 將 mm 轉換為 dots (假設 300 DPI)
             const dpi = 300
             const xDots = Math.round(seg.x * dpi / 25.4)
@@ -648,7 +457,7 @@ const printLabelWithMultiLineSettings = async (lines: Array<{ text: string, x: n
                 '0', // rotation
                 '2', // fontStyle (粗體)
                 '0', // fontUnderline
-                'Arial', // fontFamily
+                'Microsoft JhengHei', // fontFamily
                 seg.text
             )
         })
@@ -769,11 +578,11 @@ const printUserNameLabel = async (attendee: any) => {
             return success
         } else {
             // 使用多行獨立設定打印
-            // 暫時更新第一行文字為用戶名以進行置中計算
-            const originalFirstLineText = lines[0].text
-            // 準備打印資料：第一行使用用戶名，其餘行保持原設定
-            const printLines = labelSettings.lines.slice(0, lines.length).map((line, index) => ({
-                text: lines[index].text,
+            // 直接用過濾後的 lines 建立列印資料：每個元素本來就是原陣列中同一個物件，
+            // text 與 x/y/fontSize/textInfo 本來就正確配對在一起，避免某一行文字是空的時候，
+            // 後面的行「文字」跟「座標/字級」對錯位（吃到前一行的樣式）
+            const printLines = lines.map((line) => ({
+                text: line.text,
                 x: line.x,
                 y: line.y,
                 fontSize: line.fontSize,
@@ -783,9 +592,6 @@ const printUserNameLabel = async (attendee: any) => {
             }))
 
             const success = await printLabelWithMultiLineSettings(printLines)
-
-            // 恢復原始第一行文字
-            labelSettings.lines[0].text = originalFirstLineText
 
             if (success) {
                 ElNotification({
@@ -1081,18 +887,10 @@ const temporaryStore = () => {
 }
 
 const loadTemporaryStoredSettings = () => {
-    const storedSettings = localStorage.getItem('temporaryLabelSettings')
-    if (storedSettings) {
-        try {
-            const parsedSettings = JSON.parse(storedSettings)
-            Object.assign(labelSettings, parsedSettings)
-            // updatePreview()
-        } catch (error) {
-        }
-    } else {
-        centerText() // 如果沒有存儲，則執行置中
+    const loaded = loadStoredLabelSettings()
+    if (!loaded) {
+        centerText() // 如果沒有暫存設定，則執行置中
     }
-
 }
 
 // 開啟印表機設定對話框
@@ -1263,7 +1061,7 @@ const handleUpdateList = async () => {
 }
 
 const updateEveryMinute = () => {
-    setInterval(() => {
+    return setInterval(() => {
         console.log("每分鐘更新1");
         getCheckData();
         handleSaveLastScrollData();
