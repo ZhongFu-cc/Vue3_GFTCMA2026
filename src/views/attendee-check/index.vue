@@ -257,23 +257,18 @@ const checkin = async () => {
     console.log(res.data.attendeesVO.isLastYearAttendee);
     // if (submitCheckData.actionType == 2) return;
     const type = submitCheckData.actionType == 1 ? "簽到成功" : "簽退成功";
-    if (res.data.attendeesVO.isLastYearAttendee) {
-      ElNotification({
-        title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
-        dangerouslyUseHTMLString: true,
-        message: `<p style="color:green;font-weight:bold;">${type}</p> 會員: ${res.data.attendeesVO.member.chineseName}<br/>會員類別: ${category}<br/> <p style="color:green;">為去年年會參加會員</p>`,
-        duration: 5000,
-        type: "success",
-      });
-    } else {
-      ElNotification({
-        title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
-        dangerouslyUseHTMLString: true,
-        message: `<p style="color:green;font-weight:bold;">${type}</p>會員: ${res.data.attendeesVO.member.chineseName}<br/>會員類別: ${category}<br/><p style="color:red;"> 非去年年會參加會員</p>`,
-        duration: 5000,
-        type: "success",
-      });
-    }
+    ElNotification({
+      title: `會員編號:${res.data.attendeesVO.sequenceNo}`,
+      dangerouslyUseHTMLString: true,
+      message: `<p style="color:green;font-weight:bold;">${type}</p>
+                會員: ${res.data.attendeesVO.member.chineseName ? res.data.attendeesVO.member.chineseName : res.data.attendeesVO.member.firstName + res.data.attendeesVO.member.lastName}<br/>
+                會員類別: ${category}<br/>
+                ${res.data.attendeesVO.member.remark ? `備註: ${res.data.attendeesVO.member.remark}` : ''}<br/>
+                ${res.data.attendeesVO.receiptNo ? `證書編號: ${res.data.attendeesVO.receiptNo}` : ''}
+                `,
+      duration: 10000,
+      type: "success",
+    });
 
     handleUpdateList();
     getCheckData();
