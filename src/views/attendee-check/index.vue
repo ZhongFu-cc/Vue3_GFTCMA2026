@@ -229,9 +229,9 @@ const checkOut = async () => {
     let res = await checkinApi(submitCheckData);
     Object.assign(member, res.data);
     console.log("res", res);
-    ElMessage.success({
-      message: `會員${clickRecord.member.chineseName}:簽退成功`,
-      duration: 1000,
+    ElNotification.success({
+      message: `會員${res.data.attendeesVO.member.chineseName ? res.data.attendeesVO.member.chineseName : res.data.attendeesVO.member.firstName + res.data.attendeesVO.member.lastName}:簽退成功`,
+      duration: 5000,
     });
     isOptionDialogVisible.value = false;
     handleUpdateList();
