@@ -130,6 +130,11 @@
                     <el-form-item label="會員職稱">
                         <el-text>{{ attendee.member.jobTitle }}</el-text>
                     </el-form-item>
+
+                    <el-form-item label="證書證號">
+                        <el-text>{{ attendee.receiptNo }}</el-text>
+                    </el-form-item>
+
                     <el-form-item label="會員電話">
                         <el-text>{{ attendee.member.phone }}</el-text>
                     </el-form-item>
@@ -545,9 +550,9 @@ const printUserNameLabel = async (attendee: any) => {
                     break
             }
         })
+
         // 使用多行設定來打印
         const lines = labelSettings.lines.filter((line) => {
-            console.log('過濾後的行內容:', line)
             return line.text.trim() !== ''
         })
 
